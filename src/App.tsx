@@ -1,45 +1,23 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+import { Navigate } from "react-router";
+import { invoke } from '@tauri-apps/api/core';
+import { NavLink } from "react-router";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+const config: Config = await invoke('get_config');
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
 
-  return (
-    <main className="flex flex-col text-center p-10">
-      <h1>Welcome to Tauri + React</h1>
+    console.dir(config)
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-      </div>
-      <p className="p-10">Click on the Tauri, Vite, and React logos to learn more.</p>
+    if (config.homepage_preference && !hasSeenHomepage) {
+        return <Navigate to="/starter" />;
+    }
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
-  );
+    return (
+        <main className="flex flex-col items-center justify-center text-center min-h-screen">
+            <NavLink to="/starter" className="menu-button ms-2 flex flex-col">
+                Back to Main Menu
+            </NavLink>
+        </main>
+    )
 }
-
-export default App;
