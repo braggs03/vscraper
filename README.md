@@ -1,7 +1,3 @@
-# Tauri + React + Typescript
+# vScraper - A Simple Tool for YT-DLP's Weak Spots
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
-
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+[YT-DLP](https://github.com/yt-dlp/yt-dlp)
