@@ -2,15 +2,22 @@ import { Checkbox } from "@mui/material";
 import "./App.css";
 import { useState } from "react";
 import { NavLink } from "react-router";
+import { invoke } from '@tauri-apps/api/core';
 
 const label = { inputProps: { 'aria-label': '' } };
+const config: Config = await invoke('get_config');
 
-const saveUserPreference = (preference: boolean) => {
+const saveUserPreference = async (preference: boolean) => {
 
+    const success = await invoke('set_homepage_preference', { preference });
+
+    if (!success) {
+        console.log("Failed to change user homepage preference.")
+    }
 }
 
 export default function Homepage({ onGetStarted }: { onGetStarted: () => void }) {
-    const [preference, setPreference] = useState(false);
+    const [preference, setPreference] = useState(config.homepage_preference);
 
     return (
         <main className="flex flex-col items-center justify-center text-center min-h-screen">
@@ -21,21 +28,21 @@ export default function Homepage({ onGetStarted }: { onGetStarted: () => void })
             </div>
             <h1 className="m-5 font-sans text-3xl">A Simple Tool for Youtube DL's Weak Spots.</h1>
             <div className="flex flex-row">
-                <a href="https://github.com/braggs03/vscraper" target="_blank" className="menu-button ms-2">
+                <a href="https://github.com/braggs03/vscraper" target="_blank" className="menu-button menu-button-padding ms-2">
                     Guide
                 </a>
                 <NavLink onClick={() => {
-                    saveUserPreference(preference);
+                    saveUserPreference(!preference);
                     onGetStarted();
-                }} to="/" className="menu-button ms-2 flex flex-col">
+                }} to="/" className="menu-button menu-button-padding ms-2">
                     Get Started
                 </NavLink>
-                <a href="https://github.com/braggs03/vscraper" target="_blank" className="menu-button ms-2">
+                <a href="https://github.com/braggs03/vscraper" target="_blank" className="menu-button menu-button-padding ms-2">
                     About
                 </a>
             </div>
             <p className="text-xs pt-3">
-                Don't show again. <Checkbox
+                Don't show on start. <Checkbox
                     {...label}
                     size="small"
                     checked={preference}
