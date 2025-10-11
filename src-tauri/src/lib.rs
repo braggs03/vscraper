@@ -1,7 +1,10 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 use core::panic;
-use std::{fs, sync::{Arc, Mutex}};
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+};
 use tauri::{Manager, State, WindowEvent};
 
 use serde::{Deserialize, Serialize};
@@ -76,7 +79,7 @@ fn get_config(state: State<'_, Arc<Mutex<AppState>>>) -> Option<Config> {
 }
 
 #[tauri::command]
-fn save_user_preference(state: State<'_, Arc<Mutex<AppState>>>, preference: bool) -> bool {
+fn set_homepage_preference(state: State<'_, Arc<Mutex<AppState>>>, preference: bool) -> bool {
     let state = state.lock();
 
     let mut state = match state {
@@ -112,12 +115,15 @@ pub fn run() {
 
             window.on_window_event(move |event| {
                 if let WindowEvent::CloseRequested { api, .. } = event {
+                    // Prevent premature application close.
                     api.prevent_close();
 
+                    // Save in memory config to file.
                     let config = state_clone.lock().unwrap();
                     let config_str = toml::to_string(&config.config).unwrap();
                     fs::write("user_config.toml", config_str).unwrap();
 
+                    // Allow closure of application.
                     std::process::exit(0);
                 }
             });
@@ -125,9 +131,10 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_log::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             get_config,
-            save_user_preference,
+            set_homepage_preference,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

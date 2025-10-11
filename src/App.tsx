@@ -2,14 +2,14 @@ import "./App.css";
 import { Navigate } from "react-router";
 import { invoke } from '@tauri-apps/api/core';
 import { NavLink } from "react-router";
+import { debug } from '@tauri-apps/plugin-log';
 
 const config: Config = await invoke('get_config');
 
 export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
-
-    console.dir(config)
-
+    
     if (config.homepage_preference && !hasSeenHomepage) {
+        debug("REDIRECT: /starter");
         return <Navigate to="/starter" />;
     }
 
