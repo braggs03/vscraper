@@ -3,7 +3,7 @@ import "./App.css";
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router";
 import { invoke } from '@tauri-apps/api/core';
-import { debug, error, LogOptions } from '@tauri-apps/plugin-log';
+import { debug, error } from '@tauri-apps/plugin-log';
 
 const label = { inputProps: { 'aria-label': '' } };
 const initialConfig: Config = await invoke("get_config");
