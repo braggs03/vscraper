@@ -1,3 +1,3 @@
 interface Config {
-    homepage_preference: boolean,
+    skip_homepage: boolean,
 }

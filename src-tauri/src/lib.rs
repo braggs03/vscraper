@@ -19,7 +19,7 @@ struct AppState {
 
 #[derive(Clone, Deserialize, Serialize)]
 struct Config {
-    homepage_preference: bool,
+    skip_homepage: bool,
 }
 
 impl AppState {
@@ -87,7 +87,7 @@ fn set_homepage_preference(state: State<'_, Arc<Mutex<AppState>>>, preference: b
         Err(_) => return false,
     };
 
-    state.config.homepage_preference = preference;
+    state.config.skip_homepage = preference;
 
     true
 }
