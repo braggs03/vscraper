@@ -7,8 +7,8 @@ import { debug } from '@tauri-apps/plugin-log';
 const config: Config = await invoke('get_config');
 
 export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
-    
-    if (config.homepage_preference && !hasSeenHomepage) {
+
+    if (!config.skip_homepage && !hasSeenHomepage) {
         debug("REDIRECT: /starter");
         return <Navigate to="/starter" />;
     }
