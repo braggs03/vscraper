@@ -10,7 +10,10 @@ use tauri::{Manager, State, WindowEvent};
 use serde::{Deserialize, Serialize};
 use turso::Database;
 
-const DEFAULT_CONFIG_FILE_LOCATION: &str = "default_config.toml";
+const DEFAULT_CONFIG: &str = 
+"
+skip_homepage = false
+";
 
 struct AppState {
     db: Database,
@@ -37,30 +40,17 @@ impl AppState {
     fn handle_config() -> Config {
         let filename = "user_config.toml";
 
-        let user_config_str = match fs::read_to_string(filename) {
-            Ok(c) => c,
+        let user_config = match fs::read_to_string(filename) {
+            Ok(c) => toml::from_str(&c),
             Err(error) => match error.kind() {
                 std::io::ErrorKind::NotFound => {
-                    let default_config = fs::read_to_string(DEFAULT_CONFIG_FILE_LOCATION);
-                    match default_config {
-                        Ok(default_config) => default_config,
-                        Err(error) => {
-                            panic!("Go fuck yourself, you messed with the default_config.toml. Heres the error: {}", error);
-                        }
-                    }
+                    toml::from_str(DEFAULT_CONFIG)
                 }
                 _ => {
-                    panic!("File could not be read! Heres the error: {}", error);
+                    panic!("Config Error: {}", error);
                 }
             },
-        };
-
-        let user_config: Config = match toml::from_str(&user_config_str) {
-            Ok(d) => d,
-            Err(_) => {
-                todo!("Error handling on config failure.")
-            }
-        };
+        }.expect("Config Error, could not deserialized from toml.");
 
         user_config
     }
