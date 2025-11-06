@@ -6,6 +6,8 @@ import { debug } from '@tauri-apps/plugin-log';
 
 const config: Config = await invoke('get_config');
 
+const installDependencies = () => invoke("install_yt_dlp_ffmpeg");
+
 export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
 
     if (!config.skip_homepage && !hasSeenHomepage) {
@@ -18,6 +20,11 @@ export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
             <NavLink to="/starter" className="menu-button ms-2 flex flex-col">
                 Back to Main Menu
             </NavLink>
+            <button onClick={() => {
+                installDependencies();
+            }} className="menu-button m-2">
+                Install YT-DLP and FFMPEG
+            </button>
         </main>
     )
 }
