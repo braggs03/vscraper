@@ -2,14 +2,13 @@
 
 use core::panic;
 use std::{
-    error::Error, fs, path::PathBuf, sync::{Arc, Mutex}
+    fs, path::PathBuf, sync::{Arc, Mutex}
 };
-use tauri::{Manager, State, WindowEvent, async_runtime};
-
+use tauri::{Emitter, Manager, State, WindowEvent};
 use serde::{Deserialize, Serialize};
 use tauri_plugin_log::log;
 use turso::Database;
-use yt_dlp::{Youtube, fetcher::deps::LibraryInstaller};
+use yt_dlp::fetcher::deps::LibraryInstaller;
 
 const DEFAULT_CONFIG: &str = 
 "
@@ -70,40 +69,46 @@ fn get_config(state: State<'_, Arc<Mutex<AppState>>>) -> Option<Config> {
 }
 
 #[tauri::command]
-fn install_yt_dlp_ffmpeg() -> Result<(), ()> {
-    std::thread::spawn(|| {
+fn install_yt_dlp_ffmpeg(app_handle: tauri::AppHandle) -> Result<(), ()> {
+    std::thread::spawn(move || {
         let destination = PathBuf::from("libs");
         let installer = LibraryInstaller::new(destination.clone());
         tauri::async_runtime::block_on(async {
+
+            // FFMPEG Download and Installation
             log::info!("Starting FFMPEG Installation.");
-
             let ffmpeg_install_result = installer.install_ffmpeg(None).await;
+            handle_install_result(&app_handle, &destination, "ffmpeg", ffmpeg_install_result);
 
-            match ffmpeg_install_result {
-                Ok(_) => { log::info!("Finished Downloading and Installing FFMPEG."); },
-                Err(err) => { 
-                    log::error!("Failed to Download and/or install FFMPEG: {}.", err); 
-                    log::error!("Attempting to Clean Install Path For FFMPEG.");
-                    cleared_failed_download(&destination, "ffmpeg");
-                },
-            }
-
+            // YT-DLP Download and Installation
             log::info!("Starting YT-DLP Installation.");
-
             let yt_dlp_install_result = installer.install_youtube(None).await;
-
-            match yt_dlp_install_result {
-                Ok(_) => { log::info!("Finished Downloading and Installing YT-DLP."); },
-                Err(err) => { 
-                    log::error!("Failed to Download and/or install YT-DLP: {}.", err); 
-                    log::error!("Attempting to Clean Install Path For YT-DLP.");
-                    cleared_failed_download(&destination, "yt-dlp");
-                },
-            }
+            handle_install_result(&app_handle, &destination, "yt-dlp", yt_dlp_install_result);
         });
     });
 
     Ok(())
+}
+
+fn handle_install_result(app_handle: &tauri::AppHandle, destination: &PathBuf, kind: &str, result: yt_dlp::error::Result<PathBuf>) {
+    match result {
+        Ok(_) => { 
+            log::info!("Finished Downloading and Installing {}.", kind); 
+            match app_handle.emit(&format!("{}_install", kind), true) {
+                Ok(_) => log::debug!("Successfully Emitted Event to Frontend."),
+                Err(err) => log::error!("Failed to Emit Event to Frontend: {}", err),
+            }
+        },
+        Err(err) => { 
+            log::error!("Failed to Download and/or install {}: {}.", kind, err); 
+            log::error!("Attempting to Clean Install Path For {}.", kind);
+            match app_handle.emit(&format!("{}_install", kind), false) {
+                Ok(_) => log::debug!("Successfully Emitted Event to Frontend."),
+                Err(err) => log::error!("Failed to Emit Event to Frontend: {}", err),
+            }
+            cleared_failed_download(destination, kind);
+        },
+    }
 }
 
 fn cleared_failed_download(libs_path: &PathBuf, kind: &str) {
