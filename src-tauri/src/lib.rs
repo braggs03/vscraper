@@ -1,5 +1,3 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-
 use core::panic;
 use std::{
     fs, path::PathBuf, sync::{Arc, Mutex}
@@ -10,63 +8,10 @@ use tauri_plugin_log::log;
 use turso::Database;
 use yt_dlp::fetcher::deps::LibraryInstaller;
 
-const DEFAULT_CONFIG: &str = 
-"
-skip_homepage = false
-";
+use crate::app_state::AppState;
 
-struct AppState {
-    db: Database,
-    config: Config,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-struct Config {
-    skip_homepage: bool,
-}
-
-impl AppState {
-    async fn init() -> Result<AppState, Box<dyn std::error::Error>> {
-        let db = turso::Builder::new_local("sqlite.db").build().await?;
-
-        let config = Self::handle_config();
-
-        Ok(AppState {
-            db: db,
-            config: config,
-        })
-    }
-
-    fn handle_config() -> Config {
-        let filename = "user_config.toml";
-
-        let user_config = match fs::read_to_string(filename) {
-            Ok(c) => toml::from_str(&c),
-            Err(error) => match error.kind() {
-                std::io::ErrorKind::NotFound => {
-                    toml::from_str(DEFAULT_CONFIG)
-                }
-                _ => {
-                    panic!("Config Error: {}", error);
-                }
-            },
-        }.expect("Config Error, could not deserialized from toml.");
-
-        user_config
-    }
-}
-
-#[tauri::command]
-fn get_config(state: State<'_, Arc<Mutex<AppState>>>) -> Option<Config> {
-    let state = state.lock();
-
-    let state = match state {
-        Ok(state) => state,
-        Err(_) => return None,
-    };
-
-    Some(state.config.clone())
-}
+mod app_state;
+mod config;
 
 #[tauri::command]
 fn install_yt_dlp_ffmpeg(app_handle: tauri::AppHandle) -> Result<(), ()> {
@@ -147,20 +92,6 @@ fn cleared_failed_download(libs_path: &PathBuf, kind: &str) {
     }
 }
 
-#[tauri::command]
-fn set_homepage_preference(state: State<'_, Arc<Mutex<AppState>>>, preference: bool) -> bool {
-    let state = state.lock();
-
-    let mut state = match state {
-        Ok(state) => state,
-        Err(_) => return false,
-    };
-
-    state.config.skip_homepage = preference;
-
-    true
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -176,7 +107,7 @@ pub fn run() {
             });
 
             let state = Arc::new(Mutex::new(state));
-            app.manage(state.clone()); // ✅ Register the state here
+            app.manage(state.clone());
 
             // Clone for the event handler
             let state_clone = state.clone();
@@ -188,7 +119,7 @@ pub fn run() {
 
                     // Save in memory config to file.
                     let config = state_clone.lock().unwrap();
-                    let config_str = toml::to_string(&config.config).unwrap();
+                    let config_str = toml::to_string(&config.get_config()).unwrap();
                     fs::write("user_config.toml", config_str).unwrap();
                     log::debug!("Successfully saved user_config.toml to file.");
 
@@ -202,8 +133,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
-            get_config,
-            set_homepage_preference,
+            // Config Handlers
+            config::get_config,
+            app_state::update_config,
+
+            // YT-DLP Handlers 
             install_yt_dlp_ffmpeg,
         ])
         .run(tauri::generate_context!())
