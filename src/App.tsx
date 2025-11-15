@@ -5,14 +5,11 @@ import { NavLink } from "react-router";
 import { debug } from '@tauri-apps/plugin-log';
 import { listen } from "@tauri-apps/api/event";
 import { ToastContainer, toast } from 'react-toastify';
+import { useMantineColorScheme, useMantineTheme } from "@mantine/core";
 
 const config: Config = await invoke('get_config');
 
 const installDependencies = () => invoke("install_yt_dlp_ffmpeg");
-
-const submit_link = () => {
-    
-}
 
 listen<string>("ffmpeg_install", (success) => {
     if (success) {
@@ -32,6 +29,8 @@ listen<string>("yt-dlp_install", (success) => {
 
 export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
 
+    const { colorScheme, setColorScheme } = useMantineColorScheme();
+
     if (!config.skip_homepage && !hasSeenHomepage) {
         debug("REDIRECT: /starter");
         return <Navigate to="/starter" />;
@@ -42,18 +41,18 @@ export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
             <NavLink to="/starter" className="menu-button ms-2 flex flex-col">
                 Back to Main Menu
             </NavLink>
+            
             <button onClick={() => {
                 installDependencies();
             }} className="menu-button m-2">
                 Install YT-DLP and FFMPEG
             </button>
 
-            <form action={submit_link}>
-                <input type="text" />
-                <input type="submit" value="Submit" />
-            </form>
-
-            <ToastContainer position="top-right" autoClose={5000}/>
+            <ToastContainer
+                position="top-right" 
+                autoClose={5000}
+                theme={ colorScheme == "dark" ? "dark" : "light" }
+            />
         </main>
     )
 }

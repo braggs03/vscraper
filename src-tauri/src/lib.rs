@@ -23,72 +23,31 @@ fn install_yt_dlp_ffmpeg(app_handle: tauri::AppHandle) -> Result<(), ()> {
             // FFMPEG Download and Installation
             log::info!("Starting FFMPEG Installation.");
             let ffmpeg_install_result = installer.install_ffmpeg(None).await;
-            handle_install_result(&app_handle, &destination, "ffmpeg", ffmpeg_install_result);
+            handle_install_result(&app_handle, "ffmpeg", ffmpeg_install_result);
 
             // YT-DLP Download and Installation
             log::info!("Starting YT-DLP Installation.");
             let yt_dlp_install_result = installer.install_youtube(None).await;
-            handle_install_result(&app_handle, &destination, "yt-dlp", yt_dlp_install_result);
+            handle_install_result(&app_handle, "yt-dlp", yt_dlp_install_result);
         });
     });
 
     Ok(())
 }
 
-fn handle_install_result(app_handle: &tauri::AppHandle, destination: &PathBuf, kind: &str, result: yt_dlp::error::Result<PathBuf>) {
-    match result {
+fn handle_install_result(app_handle: &tauri::AppHandle, kind: &str, install_result: yt_dlp::error::Result<PathBuf>) {
+    match &install_result {
         Ok(_) => { 
-            log::info!("Finished Downloading and Installing {}.", kind); 
-            match app_handle.emit(&format!("{}_install", kind), true) {
-                Ok(_) => log::debug!("Successfully Emitted Event to Frontend."),
-                Err(err) => log::error!("Failed to Emit Event to Frontend: {}", err),
-            }
+            log::info!("Finished Installing {}.", kind); 
         },
         Err(err) => { 
-            log::error!("Failed to Download and/or install {}: {}.", kind, err); 
-            log::error!("Attempting to Clean Install Path For {}.", kind);
-            match app_handle.emit(&format!("{}_install", kind), false) {
-                Ok(_) => log::debug!("Successfully Emitted Event to Frontend."),
-                Err(err) => log::error!("Failed to Emit Event to Frontend: {}", err),
-            }
-            cleared_failed_download(destination, kind);
+            log::error!("Failed to Install {}: {}.", kind, err); 
         },
     }
-}
 
-fn cleared_failed_download(libs_path: &PathBuf, kind: &str) {
-    let paths = fs::read_dir(libs_path);
-    match paths {
-        Ok(paths) => {
-            for dir in paths {
-                match dir {
-                    Ok(dir) => {
-                        match dir.file_name().to_str() {
-                            Some(file_name) => {
-                                if file_name.contains(kind) {
-                                    let path = dir.path();
-                                    let result = if path.is_dir() {
-                                        fs::remove_dir_all(&path)
-                                    } else {
-                                        fs::remove_file(&path)
-                                    };
-
-                                    match result {
-                                        Ok(_) => log::trace!("Successfully Removed: {}", file_name),
-                                        Err(_) => log::debug!("Failed to Remove: {}", file_name),
-                                    }
-                                }
-                            },
-                            None => { log::error!("File Name Error.", ); },
-                        }
-                    },
-                    Err(err) => {
-                        log::error!("Error Getting Directory/File: {}", err);
-                    },
-                }
-            }
-        },
-        Err(err) => { log::error!("Failed to Get libs Path Directory Path: {}", err); },
+    match app_handle.emit(&format!("{}_install", kind), install_result.is_ok()) {
+        Ok(_) => log::debug!("Emitted Event to Frontend: {}_install", kind),
+        Err(err) => log::error!("Failed to Emit Event to Frontend: {}", err),
     }
 }
 
@@ -118,12 +77,25 @@ pub fn run() {
                     api.prevent_close();
 
                     // Save in memory config to file.
-                    let config = state_clone.lock().unwrap();
-                    let config_str = toml::to_string(&config.get_config()).unwrap();
-                    fs::write("user_config.toml", config_str).unwrap();
-                    log::debug!("Successfully saved user_config.toml to file.");
+                    let unlocked_state =  state_clone.lock().unwrap();
+                    let config = unlocked_state.get_config();
+                    match toml::to_string(&config) {
+                        Ok(config_as_str) => {
+                            match fs::write(config::CONFIG_FILENAME, config_as_str) {
+                                Ok(_) => {
+                                    log::debug!("Saved {} to file.", config::CONFIG_FILENAME);
+                                },
+                                Err(err) => {
+                                    
+                                },
+                            }
+                        },
+                        Err(err) => {
 
-                    // Allow closure of application.
+                        },
+                    }
+
+                    // Close application.
                     std::process::exit(0);
                 }
             });
@@ -133,9 +105,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
-            // Config Handlers
-            config::get_config,
+            // App State and Config Handlers
             app_state::update_config,
+            app_state::get_config,
 
             // YT-DLP Handlers 
             install_yt_dlp_ffmpeg,
