@@ -9,7 +9,7 @@ import { useMantineColorScheme, useMantineTheme } from "@mantine/core";
 
 const config: Config = await invoke('get_config');
 
-const installDependencies = () => invoke("install_yt_dlp_ffmpeg");
+const installDependencies = () => invoke("install_ffmpeg_ytdlp");
 
 listen<string>("ffmpeg_install", (success) => {
     if (success) {

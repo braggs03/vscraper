@@ -1,51 +1,90 @@
 use core::panic;
+use serde::{Deserialize, Serialize};
 use std::{
-    fs, path::PathBuf, sync::{Arc, Mutex}
+    fs,
+    path::PathBuf,
+    sync::{Arc, Mutex},
 };
 use tauri::{Emitter, Manager, State, WindowEvent};
-use serde::{Deserialize, Serialize};
 use tauri_plugin_log::log;
 use turso::Database;
-use yt_dlp::fetcher::deps::LibraryInstaller;
+use ubi::UbiBuilder;
 
 use crate::app_state::AppState;
 
 mod app_state;
 mod config;
 
-#[tauri::command]
-fn install_yt_dlp_ffmpeg(app_handle: tauri::AppHandle) -> Result<(), ()> {
-    std::thread::spawn(move || {
-        let destination = PathBuf::from("libs");
-        let installer = LibraryInstaller::new(destination.clone());
-        tauri::async_runtime::block_on(async {
-
-            // FFMPEG Download and Installation
-            log::info!("Starting FFMPEG Installation.");
-            let ffmpeg_install_result = installer.install_ffmpeg(None).await;
-            handle_install_result(&app_handle, "ffmpeg", ffmpeg_install_result);
-
-            // YT-DLP Download and Installation
-            log::info!("Starting YT-DLP Installation.");
-            let yt_dlp_install_result = installer.install_youtube(None).await;
-            handle_install_result(&app_handle, "yt-dlp", yt_dlp_install_result);
-        });
-    });
-
-    Ok(())
+fn detect_arch() -> &'static str {
+    // Map Rust target_arch to the naming convention used by johnvansickle.com
+    // This site uses: arm64, amd64, i686, armhf, etc.
+    match std::env::consts::ARCH {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        "arm" => "armhf",
+        "i686" => "i686",
+        other => panic!("Unsupported arch: {other}"),
+    }
 }
 
-fn handle_install_result(app_handle: &tauri::AppHandle, kind: &str, install_result: yt_dlp::error::Result<PathBuf>) {
-    match &install_result {
-        Ok(_) => { 
-            log::info!("Finished Installing {}.", kind); 
-        },
-        Err(err) => { 
-            log::error!("Failed to Install {}: {}.", kind, err); 
-        },
-    }
+#[tauri::command]
+fn install_ytdlp(app_handle: tauri::AppHandle) -> bool {
+    let success = tauri::async_runtime::block_on(async {
+        let ubi = UbiBuilder::new()
+            .project("yt-dlp/yt-dlp")
+            .install_dir("./libs")
+            .build();
+        
+        let result = match ubi {
+            Ok(mut ubi) => ubi.install_binary().await,
+            Err(err) => Err(err),
+        };
 
-    match app_handle.emit(&format!("{}_install", kind), install_result.is_ok()) {
+        let emit_status = app_handle.emit(&format!("yt-dlp_install"), result.is_ok());
+
+        handle_emit_result(emit_status, "yt-dlp_install");
+
+        result
+    });
+
+    success.is_ok()
+}
+
+#[tauri::command]
+fn install_ffmpeg(app_handle: tauri::AppHandle) -> bool {
+    let arch = detect_arch();
+    let url = format!("https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-{arch}-static.tar.xz");
+
+    let success = tauri::async_runtime::block_on(async {
+        let ubi = UbiBuilder::new()
+            .url(&url)
+            .install_dir("./libs")
+            .exe("ffmpeg")
+            .build();
+
+        let result = match ubi {
+            Ok(mut ubi) => ubi.install_binary().await,
+            Err(err) => Err(err),
+        };
+
+        let emit_status = app_handle.emit(&format!("ffmpeg_install"), result.is_ok());
+
+        handle_emit_result(emit_status, "ffmpeg_install");
+
+        result
+    });
+
+    success.is_ok()
+}
+
+#[tauri::command]
+fn install_ffmpeg_ytdlp(app_handle: tauri::AppHandle) {
+    install_ffmpeg(app_handle.clone());
+    install_ytdlp(app_handle);
+}
+
+fn handle_emit_result(result: Result<(), tauri::Error>, kind: &str) {
+    match result  {
         Ok(_) => log::debug!("Emitted Event to Frontend: {}_install", kind),
         Err(err) => log::error!("Failed to Emit Event to Frontend: {}", err),
     }
@@ -77,22 +116,18 @@ pub fn run() {
                     api.prevent_close();
 
                     // Save in memory config to file.
-                    let unlocked_state =  state_clone.lock().unwrap();
+                    let unlocked_state = state_clone.lock().unwrap();
                     let config = unlocked_state.get_config();
                     match toml::to_string(&config) {
                         Ok(config_as_str) => {
                             match fs::write(config::CONFIG_FILENAME, config_as_str) {
                                 Ok(_) => {
                                     log::debug!("Saved {} to file.", config::CONFIG_FILENAME);
-                                },
-                                Err(err) => {
-                                    
-                                },
+                                }
+                                Err(err) => {}
                             }
-                        },
-                        Err(err) => {
-
-                        },
+                        }
+                        Err(err) => {}
                     }
 
                     // Close application.
@@ -108,9 +143,10 @@ pub fn run() {
             // App State and Config Handlers
             app_state::update_config,
             app_state::get_config,
-
-            // YT-DLP Handlers 
-            install_yt_dlp_ffmpeg,
+            // YT-DLP Handlers
+            install_ffmpeg,
+            install_ytdlp,
+            install_ffmpeg_ytdlp,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
