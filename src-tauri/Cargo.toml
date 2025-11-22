@@ -26,5 +26,4 @@ turso = "0.2.0"
 toml = "0.9.7"
 tauri-plugin-log = "2"
 ubi = "0.8.4"
-url = "2.5.7"
 
