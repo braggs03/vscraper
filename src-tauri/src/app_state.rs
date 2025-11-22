@@ -1,12 +1,14 @@
 use std::{fs, sync::{Arc, Mutex}};
 
+use serde_json::Value;
 use tauri::State;
+use toml::{Table, de::Error};
 use turso::Database;
 
 use crate::config::{self, Config};
 
 pub struct AppState {
-    db: Database,
+    _db: Database,
     config: Config,
 }
 
@@ -17,7 +19,7 @@ impl AppState {
         let config = Self::handle_config();
 
         Ok(AppState {
-            db: db,
+            _db: db,
             config: config,
         })
     }
@@ -32,7 +34,19 @@ impl AppState {
 
     fn handle_config() -> Config {
         let user_config = match fs::read_to_string(config::CONFIG_FILENAME) {
-            Ok(c) => toml::from_str(&c),
+            Ok(c) =>{ 
+                let mut values = c.parse::<Table>().unwrap();
+                let default_values = config::DEFAULT_CONFIG.parse::<Table>().unwrap();
+
+                default_values.iter().for_each(|(key, value)| {
+                    if !values.contains_key(key) {
+                        values.insert(key.to_owned(), value.to_owned());
+                    }
+                });
+
+                toml::from_str(&values.to_string())
+
+            },
             Err(error) => match error.kind() {
                 std::io::ErrorKind::NotFound => {
                     toml::from_str(config::DEFAULT_CONFIG)
