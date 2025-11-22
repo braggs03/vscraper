@@ -14,6 +14,7 @@ use crate::app_state::AppState;
 
 mod app_state;
 mod config;
+mod yt_dlp;
 
 fn detect_arch() -> &'static str {
     // Map Rust target_arch to the naming convention used by johnvansickle.com
