@@ -1,11 +1,8 @@
-use core::panic;
-use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    path::PathBuf,
     sync::{Arc, Mutex},
 };
-use tauri::{Emitter, Manager, State, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_log::log;
 use ubi::UbiBuilder;
 
@@ -13,79 +10,12 @@ use crate::app_state::AppState;
 
 mod app_state;
 mod config;
+mod install_components;
 mod yt_dlp;
-
-fn detect_arch() -> &'static str {
-    // Map Rust target_arch to the naming convention used by johnvansickle.com
-    // This site uses: arm64, amd64, i686, armhf, etc.
-    match std::env::consts::ARCH {
-        "x86_64" => "amd64",
-        "aarch64" => "arm64",
-        "arm" => "armhf",
-        "i686" => "i686",
-        other => panic!("Unsupported arch: {other}"),
-    }
-}
-
-#[tauri::command]
-fn install_ytdlp(app_handle: tauri::AppHandle) -> bool {
-    let success = tauri::async_runtime::block_on(async {
-        let ubi = UbiBuilder::new()
-            .project("yt-dlp/yt-dlp")
-            .install_dir("./libs")
-            .build();
-        
-        let result = match ubi {
-            Ok(mut ubi) => ubi.install_binary().await,
-            Err(err) => Err(err),
-        };
-
-        let emit_status = app_handle.emit(&format!("yt-dlp_install"), result.is_ok());
-
-        handle_emit_result(emit_status, "yt-dlp_install");
-
-        result
-    });
-
-    success.is_ok()
-}
-
-#[tauri::command]
-fn install_ffmpeg(app_handle: tauri::AppHandle) -> bool {
-    let arch = detect_arch();
-    let url = format!("https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-{arch}-static.tar.xz");
-
-    let success = tauri::async_runtime::block_on(async {
-        let ubi = UbiBuilder::new()
-            .url(&url)
-            .install_dir("./libs")
-            .exe("ffmpeg")
-            .build();
-
-        let result = match ubi {
-            Ok(mut ubi) => ubi.install_binary().await,
-            Err(err) => Err(err),
-        };
-
-        let emit_status = app_handle.emit(&format!("ffmpeg_install"), result.is_ok());
-
-        handle_emit_result(emit_status, "ffmpeg_install");
-
-        result
-    });
-
-    success.is_ok()
-}
-
-#[tauri::command]
-fn install_ffmpeg_ytdlp(app_handle: tauri::AppHandle) {
-    install_ffmpeg(app_handle.clone());
-    install_ytdlp(app_handle);
-}
 
 fn handle_emit_result(result: Result<(), tauri::Error>, kind: &str) {
     match result  {
-        Ok(_) => log::debug!("Emitted Event to Frontend: {}_install", kind),
+        Ok(_) => log::debug!("Emitted Event to Frontend: {}", kind),
         Err(err) => log::error!("Failed to Emit Event to Frontend: {}", err),
     }
 }
@@ -107,7 +37,6 @@ pub fn run() {
             let state = Arc::new(Mutex::new(state));
             app.manage(state.clone());
 
-            // Clone for the event handler
             let state_clone = state.clone();
 
             window.on_window_event(move |event| {
@@ -124,10 +53,10 @@ pub fn run() {
                                 Ok(_) => {
                                     log::debug!("Saved {} to file.", config::CONFIG_FILENAME);
                                 }
-                                Err(err) => {}
+                                Err(err) => todo!(),
                             }
                         }
-                        Err(err) => {}
+                        Err(err) => todo!(),
                     }
 
                     // Close application.
@@ -144,9 +73,9 @@ pub fn run() {
             app_state::update_config,
             app_state::get_config,
             // YT-DLP Handlers
-            install_ffmpeg,
-            install_ytdlp,
-            install_ffmpeg_ytdlp,
+            install_components::install_ffmpeg,
+            install_components::install_ytdlp,
+            install_components::install_ffmpeg_ytdlp,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

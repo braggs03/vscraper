@@ -1,8 +1,7 @@
 use std::{fs, sync::{Arc, Mutex}};
 
-use serde_json::Value;
 use tauri::State;
-use toml::{Table, de::Error};
+use toml::Table;
 
 use crate::config::{self, Config};
 
