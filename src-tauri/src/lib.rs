@@ -76,6 +76,7 @@ pub fn run() {
             install_components::install_ffmpeg,
             install_components::install_ytdlp,
             install_components::install_ffmpeg_ytdlp,
+            yt_dlp::download_best_quality,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

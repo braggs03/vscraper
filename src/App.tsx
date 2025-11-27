@@ -11,6 +11,8 @@ const config: Config = await invoke('get_config');
 
 const installDependencies = () => invoke("install_ffmpeg_ytdlp");
 
+const downloadVideo = () => invoke("download_best_quality", { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" })
+
 listen<string>("ffmpeg_install", (success) => {
     if (success) {
         toast.success("Successfully Installed FFMPEG!");
@@ -29,7 +31,7 @@ listen<string>("yt-dlp_install", (success) => {
 
 export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
 
-    const { colorScheme, setColorScheme } = useMantineColorScheme();
+    const { colorScheme } = useMantineColorScheme();
 
     if (!config.skip_homepage && !hasSeenHomepage) {
         debug("REDIRECT: /starter");
@@ -46,6 +48,12 @@ export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
                 installDependencies();
             }} className="menu-button m-2">
                 Install YT-DLP and FFMPEG
+            </button>
+
+            <button onClick={() => {
+                downloadVideo();
+            }} className="menu-button m-2">
+                Test YT-DLP
             </button>
 
             <ToastContainer

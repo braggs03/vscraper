@@ -12,12 +12,22 @@ pub enum Error {
 }
 
 #[tauri::command]
+pub fn download_best_quality<R: Runtime>(app_handle: tauri::AppHandle<R>, url: String) -> bool {
+
+    let best_format = "bestvideo+bestaudio";
+
+    let result = download_from_custom_format(app_handle, url, best_format.to_string());
+
+    result.is_ok()
+}
+
+#[tauri::command]
 fn download_from_custom_format<R: Runtime>(app_handle: tauri::AppHandle<R>, url: String, format: String) -> Result<()> {
 
-    let mut command_exit = Command::new("./yt-dlp")
+    let command_exit = Command::new("./yt-dlp")
         .arg("--progress")
         .arg("--newline")
-        .arg("https://www.youtube.com/wh?v=9zKz-2PZU")
+        .arg(&url)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped()) // yt-dlp prints progress on stderr
         .status();
@@ -34,7 +44,7 @@ fn download_from_custom_format<R: Runtime>(app_handle: tauri::AppHandle<R>, url:
         },
         Err(err) => {
             match err.kind() {
-                _ => todo!()
+                err => error!("Error: {}", err),
             }
         },
     }
