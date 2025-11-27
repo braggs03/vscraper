@@ -3,23 +3,19 @@ use std::{fs, sync::{Arc, Mutex}};
 use serde_json::Value;
 use tauri::State;
 use toml::{Table, de::Error};
-use turso::Database;
 
 use crate::config::{self, Config};
 
 pub struct AppState {
-    _db: Database,
     config: Config,
 }
 
 impl AppState {
     pub async fn init() -> Result<AppState, Box<dyn std::error::Error>> {
-        let db = turso::Builder::new_local("sqlite.db").build().await?;
 
         let config = Self::handle_config();
 
         Ok(AppState {
-            _db: db,
             config: config,
         })
     }

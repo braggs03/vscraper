@@ -7,7 +7,6 @@ use std::{
 };
 use tauri::{Emitter, Manager, State, WindowEvent};
 use tauri_plugin_log::log;
-use turso::Database;
 use ubi::UbiBuilder;
 
 use crate::app_state::AppState;

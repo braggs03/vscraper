@@ -1,7 +1,6 @@
 use std::process::{Command, Stdio};
 use tauri::Runtime;
 use tauri_plugin_log::log::error;
-use url::{Url, ParseError};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
