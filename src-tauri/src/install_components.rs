@@ -28,6 +28,7 @@ fn install_lib(app_handle: tauri::AppHandle, git_format: &str, install_path: &st
     let success = tauri::async_runtime::block_on(async {
         let ubi = UbiBuilder::new()
             .project(git_format)
+            .extract_all()
             .install_dir(install_path)
             .build();
         let result = match ubi {
