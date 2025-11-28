@@ -1,6 +1,6 @@
 use std::process::{Command, Stdio};
 use tauri::Runtime;
-use tauri_plugin_log::log::error;
+use tauri_plugin_log::log::{debug, error};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -8,7 +8,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     BadURL,
     InvalidFormat,
-
 }
 
 #[tauri::command]
@@ -24,22 +23,22 @@ pub fn download_best_quality<R: Runtime>(app_handle: tauri::AppHandle<R>, url: S
 #[tauri::command]
 fn download_from_custom_format<R: Runtime>(app_handle: tauri::AppHandle<R>, url: String, format: String) -> Result<()> {
 
+    debug!("checking url availibility");
+
     let command_exit = Command::new("./yt-dlp")
         .arg("--progress")
         .arg("--newline")
         .arg(&url)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped()) // yt-dlp prints progress on stderr
+        .stderr(Stdio::piped())
         .status();
 
     match command_exit {
         Ok(exit_status) => {
-            match exit_status.success() {
-                true => {
-
-
-                },
-                false => todo!(),
+            if !exit_status.success() {
+                // TODO: Parse stderr to provide exact error caused by yt-dlp.
+                
+                // Return generic error in place of other errors
+                return Err(Error::BadURL)
             }
         },
         Err(err) => {
@@ -48,6 +47,8 @@ fn download_from_custom_format<R: Runtime>(app_handle: tauri::AppHandle<R>, url:
             }
         },
     }
+
+    debug!("downloading from url");
 
     let mut command = Command::new("./libs/yt-dlp");
     command.arg("--format").arg(format).arg(&url);
