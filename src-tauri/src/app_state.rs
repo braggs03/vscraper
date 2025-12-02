@@ -1,7 +1,8 @@
-use std::{fs, sync::{Arc, Mutex}};
-
-use tauri::State;
-use toml::Table;
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+};
+use tauri::{Manager, Runtime, State};
 
 use crate::config::{self, Config};
 
@@ -10,13 +11,10 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub async fn init() -> Result<AppState, Box<dyn std::error::Error>> {
+    pub async fn init<R: Runtime>(app_handle: tauri::AppHandle<R>) -> Result<AppState, Box<dyn std::error::Error>> {
+        let config = Self::handle_config(app_handle);
 
-        let config = Self::handle_config();
-
-        Ok(AppState {
-            config: config,
-        })
+        Ok(AppState { config: config })
     }
 
     pub fn get_config(&self) -> Config {
@@ -25,32 +23,50 @@ impl AppState {
 
     pub fn set_config(&mut self, new_config: Config) {
         self.config = new_config;
-    } 
+    }
 
-    fn handle_config() -> Config {
-        let user_config = match fs::read_to_string(config::CONFIG_FILENAME) {
-            Ok(c) =>{ 
-                let mut values = c.parse::<Table>().unwrap();
-                let default_values = config::DEFAULT_CONFIG.parse::<Table>().unwrap();
+    fn handle_config<R: Runtime>(
+        app_handle: tauri::AppHandle<R>
+    ) -> Config {
+        let dir = app_handle.path().app_config_dir();
+        
+        let user_config = match dir {
+            Ok(dir) => {
+                fs::create_dir_all(&dir).unwrap();
+                let file = dir.join(config::CONFIG_FILENAME);
 
-                default_values.iter().for_each(|(key, value)| {
-                    if !values.contains_key(key) {
-                        values.insert(key.to_owned(), value.to_owned());
-                    }
-                });
+                let file_data = fs::read(file);
 
-                toml::from_str(&values.to_string())
+                match file_data {
+                    Ok(file_data) => {
+                        let config: Config = serde_json::from_slice(&file_data).unwrap();
 
-            },
-            Err(error) => match error.kind() {
-                std::io::ErrorKind::NotFound => {
-                    toml::from_str(config::DEFAULT_CONFIG)
+                        config
+                    },
+                    Err(err) => {
+                        match err.kind() {
+                            std::io::ErrorKind::NotFound => {
+                                match serde_json::from_str(config::DEFAULT_CONFIG) {
+                                    Ok(config) => {
+                                        let config: Config = config;
+
+                                        config
+                                    },
+                                    Err(err) => todo!("{}", err),
+                                }
+                            },
+                            _ => todo!(),
+                        }
+                    },
                 }
-                _ => {
-                    panic!("Config Error: {}", error);
+            },
+            Err(err) => {
+                match err {
+                    // Handle config directory error - should be panic?
+                    _ => todo!()
                 }
             },
-        }.expect("Config Error, could not deserialized from toml.");
+        };
 
         user_config
     }

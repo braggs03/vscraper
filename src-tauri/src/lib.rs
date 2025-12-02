@@ -2,9 +2,8 @@ use std::{
     fs,
     sync::{Arc, Mutex},
 };
-use tauri::{Emitter, Manager, WindowEvent};
+use tauri::{Manager, WindowEvent};
 use tauri_plugin_log::log;
-use ubi::UbiBuilder;
 
 use crate::app_state::AppState;
 
@@ -29,7 +28,7 @@ pub fn run() {
                 .expect("Failed to get main window");
 
             let state = tauri::async_runtime::block_on(async {
-                AppState::init()
+                AppState::init(app.app_handle().clone())
                     .await
                     .expect("Failed to initialize app state")
             });
@@ -37,7 +36,8 @@ pub fn run() {
             let state = Arc::new(Mutex::new(state));
             app.manage(state.clone());
 
-            let state_clone = state.clone();
+            let config_dir = app.app_handle().path().app_config_dir().expect("failed to find/open config dir");
+            let close_requested_state = state.clone();
 
             window.on_window_event(move |event| {
                 if let WindowEvent::CloseRequested { api, .. } = event {
@@ -45,18 +45,18 @@ pub fn run() {
                     api.prevent_close();
 
                     // Save in memory config to file.
-                    let unlocked_state = state_clone.lock().unwrap();
+                    let unlocked_state = close_requested_state.lock().unwrap();
                     let config = unlocked_state.get_config();
-                    match toml::to_string(&config) {
+                    match serde_json::to_string_pretty(&config) {
                         Ok(config_as_str) => {
-                            match fs::write(config::CONFIG_FILENAME, config_as_str) {
+                            match fs::write(config_dir.join(config::CONFIG_FILENAME), config_as_str) {
                                 Ok(_) => {
-                                    log::debug!("Saved {} to file.", config::CONFIG_FILENAME);
+                                    log::debug!("saved {} to file.", config::CONFIG_FILENAME);
                                 }
-                                Err(err) => todo!(),
+                                Err(_) => todo!(),
                             }
                         }
-                        Err(err) => todo!(),
+                        Err(_) => todo!(),
                     }
 
                     // Close application.
