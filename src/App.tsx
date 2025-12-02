@@ -5,7 +5,8 @@ import { NavLink } from "react-router";
 import { debug } from '@tauri-apps/plugin-log';
 import { listen } from "@tauri-apps/api/event";
 import { ToastContainer, toast } from 'react-toastify';
-import { useMantineColorScheme, useMantineTheme } from "@mantine/core";
+import { Button } from "@/components/ui/button"
+import { useTheme } from "./components/theme-provider";
 
 const config: Config = await invoke('get_config');
 
@@ -31,7 +32,7 @@ listen<string>("yt-dlp_install", (success) => {
 
 export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
 
-    const { colorScheme } = useMantineColorScheme();
+    const { theme } = useTheme();
 
     if (!config.skip_homepage && !hasSeenHomepage) {
         debug("REDIRECT: /starter");
@@ -49,17 +50,17 @@ export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
             }} className="menu-button m-2">
                 Install YT-DLP and FFMPEG
             </button>
-
-            <button onClick={() => {
+            
+            <Button variant="outline"  onClick={() => {
                 downloadVideo();
-            }} className="menu-button m-2">
+            }} className="m-2">
                 Test YT-DLP
-            </button>
+            </Button>
 
             <ToastContainer
                 position="top-right" 
                 autoClose={5000}
-                theme={ colorScheme == "dark" ? "dark" : "light" }
+                theme={ theme == "dark" ? "dark" : "light" }
             />
         </main>
     )
