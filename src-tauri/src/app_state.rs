@@ -46,14 +46,7 @@ impl AppState {
                     Err(err) => {
                         match err.kind() {
                             std::io::ErrorKind::NotFound => {
-                                match serde_json::from_str(config::DEFAULT_CONFIG) {
-                                    Ok(config) => {
-                                        let config: Config = config;
-
-                                        config
-                                    },
-                                    Err(err) => todo!("{}", err),
-                                }
+                                Config::default()
                             },
                             _ => todo!(),
                         }
