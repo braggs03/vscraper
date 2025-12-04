@@ -1,6 +1,6 @@
-import { Navigate, NavLink, useNavigate } from "react-router";
-import { Checkbox } from "@mui/material";
 import "./App.css";
+import { useNavigate } from "react-router";
+import { Checkbox } from "@mui/material";
 import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { useTheme } from "./components/theme-provider";
@@ -48,14 +48,14 @@ export default function Homepage({ onGetStarted }: { onGetStarted: () => void })
             <div className="flex flex-row">
                 <Button className="mr-1">
                     <a href="https://github.com/braggs03/vscraper" target="_blank">
-                        Guide
+                        About
                     </a>
                 </Button>
                 <Button variant="outline" onClick={() => {
                     onGetStarted();
                     navigate("/");
                 }} className="mr-1">
-                    Get Started
+                    Start
                 </Button>
                 <Button variant="outline">
                     <a href="https://github.com/braggs03/vscraper" target="_blank" className="">
