@@ -12,7 +12,9 @@ const config: Config = await invoke('get_config');
 
 const installDependencies = () => invoke("install_ffmpeg_ytdlp");
 
-const downloadVideo = () => invoke("download_best_quality", { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" })
+const downloadVideo = async () => {
+    await invoke("download_best_quality", { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }).then((message) => console.log(message));
+}
 
 listen<string>("ffmpeg_install", (success) => {
     if (success) {
@@ -28,6 +30,10 @@ listen<string>("yt-dlp_install", (success) => {
     } else {
         toast.error("Failed to Install YT-DLP!");
     }
+});
+
+listen<string>("yt_dlp_test", (payload) => {
+    console.dir(payload);
 });
 
 export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
