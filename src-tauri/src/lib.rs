@@ -10,6 +10,7 @@ use crate::app_state::AppState;
 
 mod app_state;
 mod config;
+mod emissions;
 mod install_components;
 mod yt_dlp;
 
