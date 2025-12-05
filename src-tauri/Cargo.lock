@@ -4762,6 +4762,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "windows-sys 0.61.2",
 ]
@@ -5180,6 +5181,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vscraper"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "serde",
  "serde_json",
  "tauri",
@@ -5187,6 +5189,7 @@ dependencies = [
  "tauri-plugin-log",
  "tauri-plugin-opener",
  "tauri-plugin-window-state",
+ "tokio",
  "ubi",
 ]
 
