@@ -1,19 +1,24 @@
+use regex::Regex;
+use serde::Serialize;
 use serde_json::{json, Value};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::{Arc, Mutex};
-use std::thread;
 use tauri::{Emitter, Manager, Runtime, State};
-use tauri_plugin_log::log::{debug, error, info};
+use tauri_plugin_log::log::{debug, error};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
 
-use crate::app_state::{self, AppState};
+use crate::app_state::AppState;
+use crate::emissions::Emissions;
 use crate::handle_emit_result;
 
-pub type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Debug, PartialEq)]
-pub enum Error {
-    BadURL,
-    InvalidFormat,
+#[derive(Clone, Serialize)]
+struct DownloadProgress {
+    url: String,
+    percent: String,
+    size_downloaded: String,
+    speed: String,
+    eta: String,
 }
 
 #[tauri::command]
@@ -39,19 +44,18 @@ pub async fn download_from_custom_format<R: Runtime>(
     format: String,
 ) -> tauri::Result<()> {
     tauri::async_runtime::spawn(async move {
-        debug!("checking url availibility");
-
         let state: State<'_, Arc<Mutex<AppState>>> = app_handle.state();
 
         let ytdlp_path = state.lock().unwrap().get_config().get_ytdlp_path();
 
-        info!("ytdlp path: {}", ytdlp_path);
-
+        debug!("checking url availability");
         let command_exit = Command::new(&ytdlp_path)
             .arg("--simulate")
             .arg(&url)
             .stderr(Stdio::piped())
-            .status();
+            .stdout(Stdio::piped())
+            .status()
+            .await;
 
         match command_exit {
             Ok(exit_status) => {
@@ -61,13 +65,13 @@ pub async fn download_from_custom_format<R: Runtime>(
                     // Return generic error in place of other errors
                 } else {
                     let success_emit = app_handle.emit(
-                        "yt_dlp_test",
+                        "ytdlp_url_success",
                         json!({
-                            "data": "1"
+                            "url" : url.clone()
                         }),
                     );
 
-                    handle_emit_result(success_emit, "yt_dlp_test");
+                    handle_emit_result(success_emit, "ytdlp_url_success");
                 }
             }
             Err(err) => match err.kind() {
@@ -77,26 +81,59 @@ pub async fn download_from_custom_format<R: Runtime>(
 
         debug!("downloading from url");
 
-        let mut command = Command::new(&ytdlp_path);
-        command.arg("--format").arg(format).arg(&url);
+        let mut child = Command::new(&ytdlp_path)
+            .arg("--limit-rate")
+            .arg("100K")
+            .arg("--newline")
+            .arg("--format")
+            .arg(format)
+            .arg(url.clone())
+            .stderr(Stdio::null()) // <-- capture stderr
+            .stdout(Stdio::piped()) // <-- ignore stdout
+            .spawn()
+            .unwrap();
 
-        match command.output() {
-            Ok(output) => {
-                if output.status.success() {
-                    Ok(())
-                } else {
-                    // Download failed
-                    error!(
-                        "Download failed: {}",
-                        String::from_utf8_lossy(&output.stderr)
+        let stderr = child.stdout.take().unwrap();
+        let mut reader = BufReader::new(stderr).lines();
+
+        while let Some(line) = reader.next_line().await.unwrap() {
+            let regex = Regex::new(r"\[download\]\s+(\d+(?:\.\d+)?)%\s+of\s+(\d+(?:\.\d+)?[GMK]iB)\s+at\s+(\d+\.\d+(?:[GMK]i)?B\/s)\s+ETA\s+(\d+:\d+)").unwrap();
+            if line.contains("download") && regex.is_match(&line) {
+                if let Some(captures) = regex.captures(&line) {
+                    let update_url = url.clone();
+                    let percent = String::from(&captures[1]);
+                    let size_downloaded = String::from(&captures[2]);
+                    let speed = String::from(&captures[3]);
+                    let eta = String::from(&captures[4]);
+
+                    let update_emit = app_handle.emit(
+                        "EVENT",
+                        DownloadProgress {
+                            url: update_url,
+                            percent,
+                            size_downloaded,
+                            speed,
+                            eta,
+                        },
                     );
-                    return Err(Error::InvalidFormat);
+
+                    handle_emit_result(update_emit, Emissions::YtdlpDownloadUpdate.as_str());
                 }
             }
-            Err(e) => {
-                eprintln!("Error running command: {:?}", e);
-                return Err(Error::InvalidFormat);
+        }
+
+        let status = child.wait().await;
+
+        match status {
+            Ok(status) => {
+                if let Some(exit_code) = status.code() {
+                    match exit_code {
+                        0 => {}
+                        code => error!("download failed with code: {}", code),
+                    }
+                }
             }
+            Err(_) => error!("getting download process status"),
         }
     });
 
