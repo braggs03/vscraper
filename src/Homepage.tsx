@@ -5,10 +5,15 @@ import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { useTheme } from "./components/theme-provider";
 import { Button } from "./components/ui/button";
+import { Config } from "./types";
+import { info } from "@tauri-apps/plugin-log";
 
-const getPreference = async (): Promise<boolean> => {
+const getPreference = async () => {
+    info("Got 2");
     const config: Config = await invoke('get_config', {});
+    info("Got 3");
     let preference = config.skip_homepage;
+    info("Got 4");
     return preference;
 }
 
@@ -30,7 +35,7 @@ export default function Homepage({ onGetStarted }: { onGetStarted: () => void })
     const [preference, setPreference] = useState(false);
 
     useEffect(() => {
-        getPreference().then(setPreference);
+        getPreference().then(console.log);
     }, []);
 
     return (

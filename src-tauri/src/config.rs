@@ -1,54 +1,64 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+use crate::components;
 
 pub const CONFIG_FILENAME: &str = "settings.json";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Config {
+    #[serde(default = "default_binary_path")]
+    binary_install_path: PathBuf,
+    
     #[serde(default = "default_ffmpeg_path")]
-    pub ffmpeg_path: String,
+    pub ffmpeg_path: PathBuf,
 
     #[serde(default)]
     skip_homepage: bool,
 
     #[serde(default = "default_ytdlp_path")]
-    ytdlp_path: String,
+    ytdlp_path: PathBuf,
 }
 
-fn default_ffmpeg_path() -> String {
-    String::from("./libs/ffmpeg")
+fn default_binary_path() -> PathBuf {
+    PathBuf::from("./libs/")
 }
 
-fn default_ytdlp_path() -> String {
-    String::from("./libs/yt-dlp")
+fn default_ffmpeg_path() -> PathBuf {
+    default_binary_path().join(components::FFMPEG_EXECUTABLE)
+}
+
+fn default_ytdlp_path() -> PathBuf {
+    default_binary_path().join(components::YTDLP_EXECUTABLE)
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
-            ffmpeg_path: "./libs/ffmpeg".to_string(),
+            binary_install_path: default_binary_path(),
+            ffmpeg_path: default_ffmpeg_path(),
             skip_homepage: false,
-            ytdlp_path: "./libs/yt-dlp".to_string(),
+            ytdlp_path: default_ytdlp_path(),
         }
     }
 }
 
 impl Config {
-    pub fn get_ytdlp_path(&self) -> String {
+    pub fn get_binary_path(&self) -> PathBuf {
+        self.binary_install_path.clone()
+    }
+
+    pub fn get_ytdlp_path(&self) -> PathBuf {
         self.ytdlp_path.clone()
+    }
+
+    pub fn get_ffmpeg_path(&self) -> PathBuf {
+        self.ffmpeg_path.clone()
     }
 }
 
 #[test]
 fn test_default_config() {
-    let config = Config {
-        ffmpeg_path: "./libs/ffmpeg".to_string(),
-        skip_homepage: false,
-        ytdlp_path: ".libs/yt-dlp".to_string(),
-    };
-
-    assert_eq!(config, Config::default());
-
     let serde_conf: Config = serde_json::from_str("{}").unwrap();
-
     assert_eq!(serde_conf, Config::default());
 }

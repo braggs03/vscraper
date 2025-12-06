@@ -1,6 +1,5 @@
 use std::{
-    fs,
-    sync::{Arc, Mutex},
+    fs, sync::{Arc, Mutex},
 };
 use tauri::{Manager, State, WindowEvent};
 use tauri_plugin_log::log::{self, error};
@@ -10,9 +9,9 @@ use crate::app_state::AppState;
 
 mod app_state;
 mod config;
+mod components;
 mod emissions;
-mod install_components;
-mod yt_dlp;
+mod ytdlp;
 
 fn handle_emit_result(result: Result<(), tauri::Error>, kind: &str) {
     match result {
@@ -55,11 +54,9 @@ pub fn run() {
                         match config_dir {
                             Ok(config_dir) => match serde_json::to_string_pretty(&config) {
                                 Ok(config_as_str) => {
-                                    let config_file_location = config_dir.join(config::CONFIG_FILENAME);
-                                    match fs::write(
-                                        &config_file_location,
-                                        &config_as_str,
-                                    ) {
+                                    let config_file_location =
+                                        config_dir.join(config::CONFIG_FILENAME);
+                                    match fs::write(&config_file_location, &config_as_str) {
                                         Ok(_) => {
                                             log::debug!(
                                                 "saved {} to file.",
@@ -97,18 +94,26 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("logs".to_string()),
+                    },
+                ))
+                .build(),
+        )
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             // App State and Config Handlers
             app_state::update_config,
             app_state::get_config,
             // YT-DLP Handlers
-            install_components::install_ffmpeg,
-            install_components::install_ytdlp,
-            install_components::install_ffmpeg_ytdlp,
-            yt_dlp::download_best_quality,
-            yt_dlp::download_from_custom_format,
+            components::install_ytdlp,
+            components::install_ffmpeg_ytdlp,
+            ytdlp::download_best_quality,
+            ytdlp::download_from_custom_format,
+            ytdlp::cancel_download,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

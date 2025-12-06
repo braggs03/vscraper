@@ -1,4 +1,5 @@
 import "./App.css";
+import { Config, DownloadProgress, Emission } from "./types";
 import { Navigate } from "react-router";
 import { invoke } from '@tauri-apps/api/core';
 import { NavLink } from "react-router";
@@ -14,10 +15,14 @@ const config: Config = await invoke('get_config');
 const installDependencies = () => invoke("install_ffmpeg_ytdlp");
 
 const downloadVideo = async () => {
-    await invoke("download_best_quality", { url: "https://www.youtube.com/watch?v=cl_s-RazjHw" }).then((message) => console.log(message));
+    invoke("download_from_custom_format", { url: "https://www.youtube.com/watch?v=cl_s-RazjHw", format: "bestvideo+bestaudio" }).then((message) => console.log(message));
 }
 
-listen<string>("ffmpeg_install", (success) => {
+const cancelDownload = async () => {
+    await invoke("cancel_download", { url: "https://www.youtube.com/watch?v=cl_s-RazjHw" });
+}
+
+listen<boolean>(Emission.FfmpegInstall, (success) => {
     if (success) {
         toast.success("Successfully Installed FFMPEG!");
     } else {
@@ -25,7 +30,7 @@ listen<string>("ffmpeg_install", (success) => {
     }
 });
 
-listen<string>("yt-dlp_install", (success) => {
+listen<boolean>(Emission.YtdlpInstall, (success) => {
     if (success) {
         toast.success("Successfully Installed YT-DLP!");
     } else {
@@ -36,6 +41,14 @@ listen<string>("yt-dlp_install", (success) => {
 export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
 
     const { theme } = useTheme();
+
+    listen<string>("ytdlp_url_success", (success) => {
+        if (success) {
+            toast.success("Url Success");
+        } else {
+            toast.error("Failed to Install YT-DLP!");
+        }
+    });
 
     listen<DownloadProgress>("ytdlp_download_update", (payload) => {
         try {
@@ -69,6 +82,12 @@ export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
                 downloadVideo();
             }} className="m-2">
                 Test YT-DLP
+            </Button>
+
+            <Button variant="outline" onClick={() => {
+                cancelDownload();
+            }} className="m-2">
+                Cancel Download
             </Button>
 
             <h2>
