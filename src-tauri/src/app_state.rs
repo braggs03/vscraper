@@ -1,17 +1,16 @@
 use std::{
     collections::HashMap,
     fs,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, mpsc::Sender},
 };
 use tauri::{Manager, Runtime, State};
 use tauri_plugin_log::log::error;
-use tokio::process::Child;
 
 use crate::config::{self, Config};
 
 pub struct AppState {
     config: Config,
-    current_downloads: Arc<Mutex<HashMap<String, Arc<Mutex<Child>>>>>,
+    current_downloads: Arc<Mutex<HashMap<String, Sender<()>>>>,
 }
 
 impl AppState {
@@ -33,7 +32,7 @@ impl AppState {
         self.config = new_config;
     }
 
-    pub fn get_downloads(&self) -> Arc<Mutex<HashMap<String, Arc<Mutex<Child>>>>> {
+    pub fn get_downloads(&self) -> Arc<Mutex<HashMap<String, Sender<()>>>> {
         self.current_downloads.clone()
     }
 

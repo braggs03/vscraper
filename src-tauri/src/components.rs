@@ -2,8 +2,9 @@ use std::sync::{Arc, Mutex};
 use tauri::{Emitter, State};
 use tauri_plugin_log::log::error;
 use ubi::UbiBuilder;
+use vscraper_lib::handle_emit_result;
 
-use crate::{app_state::AppState, emissions::Emission, handle_emit_result};
+use crate::{app_state::AppState, emissions::Emission};
 
 pub const FFMPEG_EXECUTABLE: &str = "ffmpeg";
 const FFMPEG_GITHUB: &str = "eugeneware/ffmpeg-static";

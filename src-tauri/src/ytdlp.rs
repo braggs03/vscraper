@@ -1,15 +1,15 @@
 use regex::Regex;
 use serde::Serialize;
-use std::process::Stdio;
-use std::sync::{Arc, Mutex};
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
+use std::sync::mpsc::TryRecvError;
+use std::sync::{mpsc, Arc, Mutex};
 use tauri::{Emitter, Manager, Runtime, State};
 use tauri_plugin_log::log::{debug, error, info};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 
 use crate::app_state::AppState;
 use crate::emissions::Emission;
-use crate::handle_emit_result;
+use vscraper_lib::handle_emit_result;
 
 #[derive(Clone, Serialize)]
 struct DownloadProgress {
@@ -41,16 +41,16 @@ pub async fn download_from_custom_format<R: Runtime>(
     app_handle: tauri::AppHandle<R>,
     url: String,
     format: String,
-) -> tauri::Result<String> {
+) -> tauri::Result<()> {
     tauri::async_runtime::spawn(async move {
         let state: State<'_, Arc<Mutex<AppState>>> = app_handle.state();
-        
         let config = state.lock().unwrap().get_config();
-
         let ytdlp_path = config.get_ytdlp_path();
         let ffmpeg_path = config.get_ffmpeg_path();
+        let (tx, rx) = mpsc::channel();
+        state.lock().unwrap().get_downloads().lock().unwrap().insert(url.clone(), tx);
 
-        debug!("checking url availability");
+        debug!("checking url availability for: {}", url);
         let command_exit = Command::new(&ytdlp_path)
             .arg("--simulate")
             .arg(&url)
@@ -58,12 +58,11 @@ pub async fn download_from_custom_format<R: Runtime>(
             .arg(&ffmpeg_path)
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
-            .status()
-            .await;
+            .status();
 
         match command_exit {
             Ok(exit_status) => {
-                if exit_status.success() {
+                if !exit_status.success() {
                     // TODO: Parse stderr to provide exact error caused by yt-dlp.
 
                     // Return generic error in place of other errors
@@ -83,7 +82,7 @@ pub async fn download_from_custom_format<R: Runtime>(
 
         debug!("downloading from url");
 
-        let child = Command::new(&ytdlp_path)
+        let mut child = Command::new(&ytdlp_path)
             .arg("--newline")
             .arg("--limit-rate")
             .arg("100K")
@@ -96,18 +95,36 @@ pub async fn download_from_custom_format<R: Runtime>(
             .stdout(Stdio::piped()) // <-- ignore stdout
             .spawn()
             .unwrap();
+
+        
             
-        let safe_child = Arc::new(Mutex::new(child));
+        debug!("spawned ytdlp download from url: {}, with pid: {}", url, child.id());
 
-        state.lock().unwrap().get_downloads().lock().unwrap().insert(url.clone(), safe_child.clone());
-
-        let stderr = safe_child.lock().unwrap().stdout.take().unwrap();
-
+        let stderr = child.stdout.take().unwrap();
         let mut reader = BufReader::new(stderr).lines();
 
-        while let Some(line) = reader.next_line().await.unwrap() {
-            info!("Line: {}", line);
-            let regex = Regex::new(r"\[download\]\s+(\d+(?:\.\d+)?)%\s+of\s+(\d+(?:\.\d+)?[GMK]iB)\s+at\s+(\d+\.\d+(?:[GMK]i)?B\/s)\s+ETA\s+(\d+:\d+)").unwrap();
+        let regex = Regex::new(r"\[download\]\s+(\d+(?:\.\d+)?)%\s+of\s+(\d+(?:\.\d+)?[GMK]iB)\s+at\s+(\d+\.\d+(?:[GMK]i)?B\/s)\s+ETA\s+(\d+:\d+)").unwrap();
+        while let Some(Ok(line)) = reader.next() {
+            match rx.try_recv() {
+                Ok(_) | Err(TryRecvError::Disconnected) => {
+                    let pid = child.id();
+                    debug!("received kill signal for url: {}, pid: {}", url, pid);
+                    match child.kill() {
+                        Ok(_) => {
+                            info!("successfully killed child for url: {}, pid: {}", url, pid);
+                            match child.wait() {
+                                Ok(exit_status) => {
+                                    debug!("killed child for url: {}, exited with code: {}", url, exit_status);
+                                },
+                                Err(_) => todo!(),
+                            }
+                        },
+                        Err(err) => error!("failed to kill child for url: {}, pid: {} err: {}", url, pid, err),
+                    }
+                    break
+                },
+                Err(TryRecvError::Empty) => {},
+            }
             if line.contains("download") && regex.is_match(&line) {
                 if let Some(captures) = regex.captures(&line) {
                     let url = url.clone();
@@ -133,35 +150,24 @@ pub async fn download_from_custom_format<R: Runtime>(
         }
     }).await?;
 
-    Ok("success".to_string())
+    Ok(())
 }
 
 #[tauri::command]
-pub fn cancel_download(
-    app_handle: tauri::AppHandle,
-    url: String,
-) {
+pub fn cancel_download(app_handle: tauri::AppHandle, url: String) {
     let state: State<'_, Arc<Mutex<AppState>>> = app_handle.state();
     let safe_downloads = state.lock().unwrap().get_downloads();
     let downloads = safe_downloads.lock().unwrap();
-    let download_child = downloads.get(&url);
-    match download_child {
-        Some(download_child) => {
-            let mut download_child = download_child.lock().unwrap();
-            tauri::async_runtime::block_on(async {
-                info!("{:?}", download_child);
-                match download_child.id() {
-                    Some(num) => {
-                        info!("PID: {}", num);
-                        Command::new("kill").arg(num.to_string());
-                    },
-                    None => todo!(),
-                }
-            });
-        },
+    let tx = downloads.get(&url);
+    match tx {
+        Some(tx) => {
+            let success = tx.send(()).is_ok();
+            let emit_result = app_handle.emit(Emission::YtdlpCancelDownload.as_str(), success);
+            handle_emit_result(emit_result, Emission::YtdlpCancelDownload.as_str());
+        }
         None => {
             error!("no download with url: {}", url);
-        },
+        }
     }
 }
 
