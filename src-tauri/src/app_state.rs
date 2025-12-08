@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    fs,
-    sync::{Arc, Mutex, mpsc::Sender},
+    fs, sync::{Arc, Mutex, mpsc::Sender},
 };
 use tauri::{Manager, Runtime, State};
 use tauri_plugin_log::log::error;

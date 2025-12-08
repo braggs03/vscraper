@@ -63,8 +63,8 @@ fn install_lib(
             Ok(mut ubi) => {
                 tauri::async_runtime::block_on(async {
                     let install_result = ubi.install_binary().await;
-                    let emit_result = app_handle.emit(emission.as_str(), install_result.is_ok());
-                    handle_emit_result(emit_result, emission.as_str());
+                    let emit_result = app_handle.emit(emission.as_string(), install_result.is_ok());
+                    handle_emit_result(emit_result, emission.as_string());
                 });
             }
             Err(err) => error!("building ubi installer for {}: {}", git_format, err),

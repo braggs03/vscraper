@@ -1,11 +1,12 @@
 use regex::Regex;
-use serde::Serialize;
-use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
-use std::sync::mpsc::TryRecvError;
-use std::sync::{mpsc, Arc, Mutex};
+use serde::{Deserialize, Serialize};
+use std::process::Stdio;
+use std::sync::mpsc::{self, TryRecvError};
+use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager, Runtime, State};
 use tauri_plugin_log::log::{debug, error, info};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
 
 use crate::app_state::AppState;
 use crate::emissions::Emission;
@@ -20,20 +21,22 @@ struct DownloadProgress {
     eta: String,
 }
 
+#[derive(Clone, Deserialize)]
+struct DownloadOptions {
+    container: String,
+    audio_quality: String,
+    video_quality: String,
+    url: String,
+    // YTDLP Options
+}
+
 #[tauri::command]
 pub async fn download_best_quality<R: Runtime>(
     app_handle: tauri::AppHandle<R>,
     url: String,
 ) -> tauri::Result<()> {
-    tauri::async_runtime::spawn(async move {
-        let best_format = "bestvideo+bestaudio";
-
-        let result = download_from_custom_format(app_handle, url, best_format.to_string()).await;
-
-        result.is_ok()
-    });
-
-    Ok(())
+    let best_format = "bestvideo+bestaudio";
+    download_from_custom_format(app_handle, url, best_format.to_string()).await
 }
 
 #[tauri::command]
@@ -47,7 +50,7 @@ pub async fn download_from_custom_format<R: Runtime>(
         let config = state.lock().unwrap().get_config();
         let ytdlp_path = config.get_ytdlp_path();
         let ffmpeg_path = config.get_ffmpeg_path();
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::channel(); //
         state.lock().unwrap().get_downloads().lock().unwrap().insert(url.clone(), tx);
 
         debug!("checking url availability for: {}", url);
@@ -58,7 +61,8 @@ pub async fn download_from_custom_format<R: Runtime>(
             .arg(&ffmpeg_path)
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
-            .status();
+            .status()
+            .await;
 
         match command_exit {
             Ok(exit_status) => {
@@ -68,11 +72,11 @@ pub async fn download_from_custom_format<R: Runtime>(
                     // Return generic error in place of other errors
                 } else {
                     let success_emit = app_handle.emit(
-                        "ytdlp_url_success",
+                        Emission::YtdlpUrlSuccess.as_string(),
                         true,
                     );
 
-                    handle_emit_result(success_emit, "ytdlp_url_success");
+                    handle_emit_result(success_emit, Emission::YtdlpUrlSuccess.as_string());
                 }
             }
             Err(err) => match err.kind() {
@@ -81,7 +85,6 @@ pub async fn download_from_custom_format<R: Runtime>(
         }
 
         debug!("downloading from url");
-
         let mut child = Command::new(&ytdlp_path)
             .arg("--newline")
             .arg("--limit-rate")
@@ -91,32 +94,32 @@ pub async fn download_from_custom_format<R: Runtime>(
             .arg("--ffmpeg-location")
             .arg(&ffmpeg_path)
             .arg(url.clone())
-            .stderr(Stdio::null()) // <-- capture stderr
-            .stdout(Stdio::piped()) // <-- ignore stdout
+            .stderr(Stdio::null())
+            .stdout(Stdio::piped())
             .spawn()
             .unwrap();
 
-        
-            
-        debug!("spawned ytdlp download from url: {}, with pid: {}", url, child.id());
+        debug!("spawned ytdlp download from url: {}, with pid: {}", url, child.id().map_or("unknown".to_string(), |code| code.to_string()));
 
         let stderr = child.stdout.take().unwrap();
         let mut reader = BufReader::new(stderr).lines();
 
         let regex = Regex::new(r"\[download\]\s+(\d+(?:\.\d+)?)%\s+of\s+(\d+(?:\.\d+)?[GMK]iB)\s+at\s+(\d+\.\d+(?:[GMK]i)?B\/s)\s+ETA\s+(\d+:\d+)").unwrap();
-        while let Some(Ok(line)) = reader.next() {
+        while let Ok(Some(line)) = reader.next_line().await {
             match rx.try_recv() {
                 Ok(_) | Err(TryRecvError::Disconnected) => {
-                    let pid = child.id();
+                    let pid = child.id().map_or("unknown".to_string(), |code| code.to_string());
                     debug!("received kill signal for url: {}, pid: {}", url, pid);
-                    match child.kill() {
+                    match child.kill().await {
                         Ok(_) => {
                             info!("successfully killed child for url: {}, pid: {}", url, pid);
-                            match child.wait() {
+                            match child.wait().await {
                                 Ok(exit_status) => {
-                                    debug!("killed child for url: {}, exited with code: {}", url, exit_status);
+                                    debug!("killed zombie child for url: {}, pid: {}, exit code: {}", url, pid, exit_status);
                                 },
-                                Err(_) => todo!(),
+                                Err(err) => {
+                                    error!("failed to kill zombie child for url: {}, pid: {}, err: {}", url, pid, err);
+                                },
                             }
                         },
                         Err(err) => error!("failed to kill child for url: {}, pid: {} err: {}", url, pid, err),
@@ -134,7 +137,7 @@ pub async fn download_from_custom_format<R: Runtime>(
                     let eta = String::from(&captures[4]);
 
                     let update_emit = app_handle.emit(
-                        Emission::YtdlpDownloadUpdate.as_str(),
+                        Emission::YtdlpDownloadUpdate.as_string(),
                         DownloadProgress {
                             url,
                             percent,
@@ -144,7 +147,7 @@ pub async fn download_from_custom_format<R: Runtime>(
                         },
                     );
 
-                    handle_emit_result(update_emit, Emission::YtdlpDownloadUpdate.as_str());
+                    handle_emit_result(update_emit, Emission::YtdlpDownloadUpdate.as_string());
                 }
             }
         }
@@ -162,8 +165,8 @@ pub fn cancel_download(app_handle: tauri::AppHandle, url: String) {
     match tx {
         Some(tx) => {
             let success = tx.send(()).is_ok();
-            let emit_result = app_handle.emit(Emission::YtdlpCancelDownload.as_str(), success);
-            handle_emit_result(emit_result, Emission::YtdlpCancelDownload.as_str());
+            let emit_result = app_handle.emit(Emission::YtdlpCancelDownload.as_string(), success);
+            handle_emit_result(emit_result, Emission::YtdlpCancelDownload.as_string());
         }
         None => {
             error!("no download with url: {}", url);
@@ -180,7 +183,7 @@ fn test_ytdlp_custom_format_invalid_url() {
         );
         let format = String::from("best[height<=720]");
         let app = tauri::test::mock_app();
-        let result = download_from_custom_format(app.app_handle().clone(), url, format);
-        assert_eq!(result.await.is_ok(), false);
+        let result = download_from_custom_format(app.app_handle().clone(), url, format).await;
+        assert_eq!(result.is_ok(), false);
     });
 }

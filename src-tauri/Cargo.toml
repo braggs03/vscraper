@@ -27,4 +27,5 @@ tauri-plugin-opener = "2"
 ubi = "0.8.4"
 regex = "1.12.2"
 clap = { version = "4.5.53", features = ["derive"] }
+tokio = { version = "1.48.0", features = ["process"] }
 
