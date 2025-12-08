@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub enum Emission {
     FfmpegInstall,
     YtdlpCancelDownload,
@@ -7,7 +8,7 @@ pub enum Emission {
 }
 
 impl Emission {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_string(&self) -> &'static str {
         match self {
             Emission::FfmpegInstall => "ffmpeg_install",
             Emission::YtdlpCancelDownload => "ytdlp_cancel_download",
