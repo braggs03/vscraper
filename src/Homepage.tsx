@@ -24,11 +24,8 @@ const updatePreference = async (updatedPreference: boolean) => {
 }
 
 export default function Homepage({ onGetStarted }: { onGetStarted: () => void }) {
-
-    let navigate = useNavigate();
-
     const { theme } = useTheme();
-
+    const navigate = useNavigate();
     const [preference, setPreference] = useState(false);
 
     useEffect(() => {
@@ -54,6 +51,7 @@ export default function Homepage({ onGetStarted }: { onGetStarted: () => void })
                     </a>
                 </Button>
                 <Button variant="outline" onClick={() => {
+                    updatePreference(preference);
                     onGetStarted();
                     navigate("/");
                 }} className="mr-1">
@@ -65,12 +63,10 @@ export default function Homepage({ onGetStarted }: { onGetStarted: () => void })
                     </a>
                 </Button>
             </div>
-            <p className="text-sm pt-3">
-                <div className="flex items-center gap-3">
-                    <Checkbox id="toggle" disabled />
-                    <Label htmlFor="toggle">Don't Show on Start</Label>
-                </div>
-            </p>
+            <div className="flex items-center gap-3 mt-3">
+                <Checkbox id="homepage_preference" checked={preference} onClick={ () => setPreference(!preference) } />
+                <Label htmlFor="homepage_preference">Don't Show on Start</Label>
+            </div>
         </main>
     );
 }
