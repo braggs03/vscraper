@@ -1,10 +1,9 @@
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, State};
+use tauri::State;
 use tauri_plugin_log::log::error;
 use ubi::UbiBuilder;
-use vscraper_lib::handle_emit_result;
 
-use crate::{app_state::AppState, emissions::Emission};
+use crate::{app_state::AppState, emissions::Emission, emit_and_handle_result};
 
 pub const FFMPEG_EXECUTABLE: &str = "ffmpeg";
 const FFMPEG_GITHUB: &str = "eugeneware/ffmpeg-static";
@@ -63,8 +62,7 @@ fn install_lib(
             Ok(mut ubi) => {
                 tauri::async_runtime::block_on(async {
                     let install_result = ubi.install_binary().await;
-                    let emit_result = app_handle.emit(emission.as_string(), install_result.is_ok());
-                    handle_emit_result(emit_result, emission.as_string());
+                    emit_and_handle_result(&app_handle, emission, install_result.is_ok());
                 });
             }
             Err(err) => error!("building ubi installer for {}: {}", git_format, err),

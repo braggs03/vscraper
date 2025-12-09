@@ -4,7 +4,8 @@ pub enum Emission {
     YtdlpCancelDownload,
     YtdlpDownloadUpdate,
     YtdlpInstall,
-    YtdlpUrlSuccess,
+    YtdlpUrlUpdate,
+    YtdlpDownloadFinish,
 }
 
 impl Emission {
@@ -13,8 +14,9 @@ impl Emission {
             Emission::FfmpegInstall => "ffmpeg_install",
             Emission::YtdlpCancelDownload => "ytdlp_cancel_download",
             Emission::YtdlpDownloadUpdate => "ytdlp_download_update",
+            Emission::YtdlpDownloadFinish => "ytdlp_download_finish",
             Emission::YtdlpInstall => "ytdlp_install",
-            Emission::YtdlpUrlSuccess => "ytdlp_url_success",
+            Emission::YtdlpUrlUpdate => "ytdlp_url_update",
         }
     }
 }

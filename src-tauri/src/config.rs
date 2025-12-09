@@ -55,6 +55,14 @@ impl Config {
     pub fn get_ffmpeg_path(&self) -> PathBuf {
         self.ffmpeg_path.clone()
     }
+
+    pub fn get_skip_homepage(&self) -> bool {
+        self.skip_homepage
+    }
+
+    pub fn set_skip_homepage(&mut self, new_preference: bool) {
+        self.skip_homepage = new_preference;
+    }
 }
 
 #[test]
