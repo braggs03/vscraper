@@ -9,7 +9,7 @@ use crate::config::{self, Config};
 
 pub struct AppState {
     config: Config,
-    current_downloads: Arc<Mutex<HashMap<String, Sender<()>>>>,
+    current_downloads: HashMap<String, Sender<()>>,
 }
 
 impl AppState {
@@ -18,21 +18,26 @@ impl AppState {
     ) -> Result<AppState, Box<dyn std::error::Error>> {
         Ok(AppState {
             config: Self::handle_config(app_handle),
-            current_downloads: Arc::new(Mutex::new(HashMap::new())),
+            current_downloads: HashMap::new(),
         })
     }
-
+    
     pub fn get_config(&self) -> Config {
         self.config.clone()
     }
 
-    pub fn set_config(&mut self, new_config: Config) {
-        // TODO - Fix this dog shit
-        self.config = new_config;
+    pub fn add_download(&mut self, url: String, sender: Sender<()>) -> bool {
+        match self.current_downloads.contains_key(&url) {
+            true => false,
+            false => {
+                self.current_downloads.insert(url, sender);
+                true
+            },
+        }
     }
 
-    pub fn get_downloads(&self) -> Arc<Mutex<HashMap<String, Sender<()>>>> {
-        self.current_downloads.clone()
+    pub fn get_download(&self, url: &str) -> Option<&Sender<()>> {
+        self.current_downloads.get(url)
     }
 
     fn handle_config<R: Runtime>(app_handle: tauri::AppHandle<R>) -> Config {
@@ -78,18 +83,17 @@ pub fn get_config(state: State<'_, Arc<Mutex<AppState>>>) -> Option<Config> {
 }
 
 #[tauri::command]
-pub fn update_config(state: State<'_, Arc<Mutex<AppState>>>, updated_config: Config) -> bool {
+pub fn update_skip_homepage(state: State<'_, Arc<Mutex<AppState>>>, updated_preference: bool) -> bool {
     let state = state.lock();
 
-    let mut state = match state {
-        Ok(state) => state,
+    match state {
+        Ok(state) => {
+            state.get_config().set_skip_homepage(updated_preference);
+            true
+        },
         Err(err) => {
-            error!("updating config: {}", err);
-            return false;
+            error!("updating homepage preference: {}", err);
+            false
         }
-    };
-
-    state.set_config(updated_config);
-
-    true
+    }
 }
