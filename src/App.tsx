@@ -1,21 +1,23 @@
-import "./App.css";
-import { Config, DownloadProgress, Emission } from "./types";
-import { Navigate } from "react-router";
+import { Button } from "@/components/ui/button";
 import { invoke } from '@tauri-apps/api/core';
-import { NavLink } from "react-router";
-import { debug } from '@tauri-apps/plugin-log';
 import { listen } from "@tauri-apps/api/event";
-import { ToastContainer, toast } from 'react-toastify';
-import { Button } from "@/components/ui/button"
-import { useTheme } from "./components/theme-provider";
+import { debug } from '@tauri-apps/plugin-log';
 import { useState } from "react";
+import { NavLink, Navigate } from "react-router";
+import { ToastContainer, toast } from 'react-toastify';
+import "./App.css";
+import { useTheme } from "./components/theme-provider";
+import { Config, DownloadProgress, Emission } from "./types";
 
 const config: Config = await invoke('get_config');
 
 const installDependencies = () => invoke("install_ffmpeg_ytdlp");
 
 const downloadVideo = async () => {
-    invoke("download_from_custom_format", { url: "https://www.youtube.com/watch?v=cl_s-RazjHw", format: "bestvideo+bestaudio" }).then((message) => console.log(message));
+    const options = {
+        url: "https://www.youtube.com/watch?v=cl_s-RazjHw",
+    };
+    invoke("download_best_quality", { options }).then((message) => console.log(message));
 }
 
 const cancelDownload = async () => {
@@ -53,8 +55,9 @@ export default function App({ hasSeenHomepage }: { hasSeenHomepage: boolean }) {
     listen<DownloadProgress>("ytdlp_download_update", (payload) => {
         try {
             let download_update: DownloadProgress = payload.payload;
-            setDownload(download_update.percent);
-        } catch(bog) {
+            let percent = download_update.percent;
+            setDownload(percent);
+        } catch (bog) {
             console.log(bog);
         }
     });

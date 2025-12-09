@@ -1,11 +1,12 @@
 import "./App.css";
 import { useNavigate } from "react-router";
-import { Checkbox } from "@mui/material";
 import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { useTheme } from "./components/theme-provider";
 import { Button } from "./components/ui/button";
 import { Config } from "./types";
+import { Checkbox } from "./components/ui/checkbox";
+import { Label } from "./components/ui/label";
 
 const getPreference = async () => {
     const config: Config = await invoke('get_config', {});
@@ -65,14 +66,10 @@ export default function Homepage({ onGetStarted }: { onGetStarted: () => void })
                 </Button>
             </div>
             <p className="text-sm pt-3">
-                Don't show on start. <Checkbox
-                    size="small"
-                    checked={preference}
-                    onChange={(e) => {
-                        setPreference(e.target.checked);
-                        updatePreference(e.target.checked);
-                    }}
-                />
+                <div className="flex items-center gap-3">
+                    <Checkbox id="toggle" disabled />
+                    <Label htmlFor="toggle">Don't Show on Start</Label>
+                </div>
             </p>
         </main>
     );
