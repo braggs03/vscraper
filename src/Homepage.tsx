@@ -4,22 +4,19 @@ import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { useTheme } from "./components/theme-provider";
 import { Button } from "./components/ui/button";
-import { Config } from "./types";
 import { Checkbox } from "./components/ui/checkbox";
 import { Label } from "./components/ui/label";
+import { Config } from "./types";
 
 const getPreference = async () => {
-    const config: Config = await invoke('get_config', {});
+    const config: Config = await invoke('get_config');
     let preference = config.skip_homepage;
     return preference;
 }
 
 const updatePreference = async (updatedPreference: boolean) => {
-    const config: Config = await invoke('get_config', {});
-    config.skip_homepage = updatedPreference;
-    let updatedConfig = config;
-    const success = await invoke('update_config', { updatedConfig });
-
+    console.log(updatedPreference);
+    const success = await invoke('update_skip_homepage', { updatedPreference });
     return success;
 }
 
