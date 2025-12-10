@@ -1,6 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 use tauri::State;
 use tauri_plugin_log::log::error;
+use tokio::sync::Mutex;
 use ubi::UbiBuilder;
 
 use crate::{app_state::AppState, emissions::Emission, emit_and_handle_result};
@@ -15,7 +16,7 @@ pub async fn install_ytdlp(
     app_handle: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> tauri::Result<()> {
-    let install_path = state.lock().unwrap().get_config().get_binary_path();
+    let install_path = state.lock().await.get_config().get_binary_path();
     install_lib(
         app_handle,
         String::from(YTDLP_GITHUB),
@@ -32,7 +33,7 @@ pub async fn install_ffmpeg(
     app_handle: tauri::AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> tauri::Result<()> {
-    let install_path = state.lock().unwrap().get_config().get_binary_path();
+    let install_path = state.lock().await.get_config().get_binary_path();
     install_lib(
         app_handle,
         String::from(FFMPEG_GITHUB),
