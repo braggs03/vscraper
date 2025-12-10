@@ -1,9 +1,9 @@
 use std::{
     collections::HashMap,
-    fs, sync::{Arc, Mutex, mpsc::Sender},
+    fs, sync::{Arc},
 };
-use tauri::{Manager, Runtime, State};
-use tauri_plugin_log::log::error;
+use tauri::{Manager, Runtime, State, async_runtime::Sender};
+use tokio::sync::Mutex;
 
 use crate::config::{self, Config};
 
@@ -24,6 +24,10 @@ impl AppState {
     
     pub fn get_config(&self) -> Config {
         self.config.clone()
+    }
+
+    pub fn set_skip_homepage(&mut self, new_preference: bool) {
+        self.config.set_skip_homepage(new_preference);
     }
 
     pub fn add_download(&mut self, url: String, sender: Sender<()>) -> bool {
@@ -68,32 +72,12 @@ impl AppState {
 }
 
 #[tauri::command]
-pub fn get_config(state: State<'_, Arc<Mutex<AppState>>>) -> Option<Config> {
-    let state = state.lock();
-
-    let state = match state {
-        Ok(state) => state,
-        Err(err) => {
-            error!("retrieving config: {}", err);
-            return None;
-        }
-    };
-
-    Some(state.get_config())
+pub async fn get_config(state: State<'_, Arc<Mutex<AppState>>>) -> tauri::Result<Config> {
+    let state = state.lock().await;
+    Ok(state.get_config())
 }
 
 #[tauri::command]
-pub fn update_skip_homepage(state: State<'_, Arc<Mutex<AppState>>>, updated_preference: bool) -> bool {
-    let state = state.lock();
-
-    match state {
-        Ok(state) => {
-            state.get_config().set_skip_homepage(updated_preference);
-            true
-        },
-        Err(err) => {
-            error!("updating homepage preference: {}", err);
-            false
-        }
-    }
+pub async fn update_skip_homepage(state: State<'_, Arc<Mutex<AppState>>>, updated_preference: bool) -> tauri::Result<()> {
+    Ok(state.lock().await.set_skip_homepage(updated_preference))
 }
