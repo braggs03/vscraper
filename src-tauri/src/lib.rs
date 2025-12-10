@@ -1,8 +1,9 @@
 use serde::Serialize;
 use tauri::{Emitter, Runtime};
 use tauri_plugin_log::log::{error, trace};
+use tokio::sync::Mutex;
 use std::{
-    fs, sync::{Arc, Mutex},
+    fs, sync::Arc,
 };
 use clap::Parser;
 use tauri::{Manager, State, WindowEvent};
@@ -61,7 +62,9 @@ pub fn run(args: Args) {
 
                         // Save in memory config to file.
                         let config_dir = app_handle.path().app_config_dir();
-                        let config = close_state.lock().unwrap().get_config();
+                        let config = tauri::async_runtime::block_on(async {
+                            close_state.lock().await.get_config()
+                        });
 
                         match config_dir {
                             Ok(config_dir) => match serde_json::to_string_pretty(&config) {
@@ -120,6 +123,7 @@ pub fn run(args: Args) {
         .invoke_handler(tauri::generate_handler![
             // App State and Config Handlers
             app_state::get_config,
+            app_state::update_skip_homepage,
             // YT-DLP Handlers
             components::install_ytdlp,
             components::install_ffmpeg_ytdlp,
