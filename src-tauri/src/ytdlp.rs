@@ -1,11 +1,11 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::{Mutex, mpsc};
 use std::future::Future;
-use std::option;
 use std::path::PathBuf;
 use std::process::{ExitStatus, Stdio};
-use std::sync::mpsc::{self, TryRecvError};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tauri::{Manager, Runtime, State};
 use tauri_plugin_log::log::{debug, error, info, trace};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -14,6 +14,8 @@ use tokio::process::Command;
 use crate::app_state::AppState;
 use crate::emissions::Emission;
 use crate::emit_and_handle_result;
+
+const YTDLP_DOWNLOAD_UPDATE_REGEX: &str = r"\[download\]\s+(\d+(?:\.\d+)?)%\s+of\s+~?\s+?(\d+(?:\.\d+)?[GMK]iB)\s+at\s+(\d+\.\d+(?:[GMK]i)?B\/s)\s+ETA\s+((\d+:\d+)|(?:Unknown))";
 
 #[derive(Clone, Serialize)]
 struct DownloadProgress {
@@ -45,7 +47,7 @@ fn default_name_format() -> String {
 }
 
 fn default_quality() -> String {
-    String::from("bestvideo")
+    String::from("best")
 }
 
 #[tauri::command]
@@ -55,13 +57,11 @@ pub async fn download_from_options<R: Runtime>(
 ) -> tauri::Result<()> {
     tauri::async_runtime::spawn(async move {
         let state: State<'_, Arc<Mutex<AppState>>> = app_handle.state();
-        let config = state.lock().unwrap().get_config();
+        let config = state.lock().await.get_config();
         let ytdlp_path = config.get_ytdlp_path();
         let ffmpeg_path = config.get_ffmpeg_path();
-        let (tx, rx) = mpsc::channel(); // Used to communicate kill and pause.
-        state.lock().unwrap().add_download(options.url.clone(), tx);
-
-        debug!("download request with options: {:#?}", options);
+        let (tx, mut rx) = mpsc::channel(100); // Used to communicate kill and pause.
+        state.lock().await.add_download(options.url.clone(), tx);
 
         debug!("checking url availability for: {}", options.url);
         match check_url_availability(&ytdlp_path, &ffmpeg_path, &options).await {
@@ -80,7 +80,6 @@ pub async fn download_from_options<R: Runtime>(
             },
         }
 
-        let format = format!("best[ext={}]", options.container);
         let download_path = app_handle.path().download_dir().unwrap().join(&options.name_format);
 
         debug!("downloading from url");
@@ -89,7 +88,7 @@ pub async fn download_from_options<R: Runtime>(
             .arg("--ffmpeg-location")
             .arg(&ffmpeg_path)
             .arg("-f")
-            .arg(format)
+            .arg(options.quality)
             .arg("-o")
             .arg(download_path)
             .arg(options.url.clone())
@@ -103,7 +102,7 @@ pub async fn download_from_options<R: Runtime>(
         let stderr = child.stdout.take().unwrap();
         let mut reader = BufReader::new(stderr).lines();
 
-        let regex = Regex::new(r"\[download\]\s+(\d+(?:\.\d+)?)%\s+of\s+~?\s+?(\d+(?:\.\d+)?[GMK]iB)\s+at\s+(\d+\.\d+(?:[GMK]i)?B\/s)\s+ETA\s+((\d+:\d+)|(?:Unknown))").unwrap();
+        let regex = Regex::new(YTDLP_DOWNLOAD_UPDATE_REGEX).unwrap();
         while let Ok(Some(line)) = reader.next_line().await {
             trace!("ytdlp: {}", line);
             match rx.try_recv() {
@@ -128,7 +127,7 @@ pub async fn download_from_options<R: Runtime>(
                 },
                 Err(TryRecvError::Empty) => {},
             }
-            if line.contains("download") && regex.is_match(&line) {
+            if regex.is_match(&line) {
                 if let Some(captures) = regex.captures(&line) {
                     let url = options.url.clone();
                     let percent = String::from(&captures[1]);
@@ -167,16 +166,16 @@ pub async fn download_from_options<R: Runtime>(
 }
 
 #[tauri::command]
-pub fn cancel_download(app_handle: tauri::AppHandle, url: String) {
+pub async fn cancel_download(app_handle: tauri::AppHandle, url: String) {
     let state: State<'_, Arc<Mutex<AppState>>> = app_handle.state();
-    let app_state = state.lock().unwrap();
+    let app_state = state.lock().await;
     let tx = app_state.get_download(&url);
     match tx {
         Some(tx) => {
             emit_and_handle_result(
                 &app_handle, 
                 Emission::YtdlpCancelDownload, 
-                tx.send(()).is_ok()
+                tx.send(()).await.is_ok()
             );
         }
         None => {
